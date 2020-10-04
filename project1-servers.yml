@@ -6,8 +6,29 @@ Parameters:
         Type: String
     S3ReadOnlyManagedPolicyParameter:
         Description: Managed policy ARN for UdacityS3ReadOnlyEC2 role
-        Type: String        
+        Type: String
+    BastionPrivateKeyName:
+        Description: Name of the key used to access bastion host
+        Type: String  
+        
 Resources:
+  BastionSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to bastion host
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 60.234.84.18/32
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.0.0.0/24 
   LBSecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -40,7 +61,7 @@ Resources:
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
-        CidrIp: 0.0.0.0/0
+        CidrIp: 10.0.0.0/24
       SecurityGroupEgress:
       - IpProtocol: tcp
         FromPort: 0
@@ -61,7 +82,6 @@ Resources:
           aws s3 cp s3://udacity-demo-1/udacity.zip .
           unzip -o udacity.zip
       ImageId: ami-07a29e5e945228fa1
-      KeyName: private-devops
       SecurityGroups:
       - Ref: WebServerSecGroup
       InstanceType: t2.medium
@@ -158,6 +178,20 @@ Resources:
       VpcId: 
         Fn::ImportValue:
           Fn::Sub: "${EnvironmentName}-VPCID"
+  BastionHost:   
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t1.micro 
+      ImageId: ami-0528a5175983e7f28
+      KeyName: 
+        Ref: BastionPrivateKeyName
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet: 
+            - Ref: "BastionSecGroup"
+          SubnetId: 
+            Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
 Outputs:
   LBUrl:
     Description: A reference to the created VPC
@@ -166,4 +200,5 @@ Outputs:
       - - "http://"
         - !GetAtt WebAppLB.DNSName
     Export:
-      Name: !Sub ${EnvironmentName}-LBUrl      
+      Name: !Sub ${EnvironmentName}-LBUrl
+     
